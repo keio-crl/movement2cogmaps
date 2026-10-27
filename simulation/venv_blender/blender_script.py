@@ -31,6 +31,13 @@ print(ENV_EPS)
 print()
 
 pos = np.load(os.path.join(EXPERIMENT_DIR, 'riab_simulation/positions.npy'))
+if 'ROBOT_SCALING' in config:
+    # Robot-scaled rooms are rendered as the whole scene enlarged uniformly by
+    # ENV_DIM / SCENE_BOX_DIM (camera height and lighting included), which gives the
+    # same images as shrinking the trajectory into the original box.
+    SCENE_BOX_DIM = 0.635
+    pos = pos * (SCENE_BOX_DIM / ENV_DIM)
+    print(f"Robot-scaled room: positions scaled by {SCENE_BOX_DIM / ENV_DIM:.5f}")
 thetas = np.load(os.path.join(EXPERIMENT_DIR, 'riab_simulation/thetas.npy'))
 
 def srgb_hex_to_linear(hex_color):

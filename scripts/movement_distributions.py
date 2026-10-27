@@ -32,14 +32,23 @@ STAGES = ["crawl", "walk", "run", "adult"]
 STAGE_COLORS = ["#86b6ef", "#3987e5", "#1c5cab", "#0d366b"]
 
 
-def load_stage(data_root: Path, stage: str, seeds: list[int]):
+def load_stage(data_root: Path, stage: str, seeds: list[int], to_rat_units: bool = False):
     speeds, rot_speeds, fps = [], [], None
     for seed in seeds:
         exp_dir = next((data_root / "box" / stage).glob(f"exp_dim*_seed{seed:02d}"))
         sim_dir = exp_dir / "riab_simulation"
-        speeds.append(np.linalg.norm(np.load(sim_dir / "velocities.npy"), axis=1))
-        fps = yaml.safe_load((exp_dir / "config.yaml").read_text())["FPS"]
-        rot_speeds.append(np.load(sim_dir / "rot_velocities.npy") * fps)
+        config = yaml.safe_load((exp_dir / "config.yaml").read_text())
+        fps = config["FPS"]
+        scaling = config.get("ROBOT_SCALING", {})
+        # Robot-scaled data store one sample per FRAME_INTERVAL_S real seconds;
+        # --to-rat-units undoes the scaling (lengths / s, times / k).
+        interval = scaling.get("FRAME_INTERVAL_S", 1 / fps)
+        speed_factor = 1.0
+        if to_rat_units and scaling:
+            interval /= scaling["SCALE_K"]
+            speed_factor = scaling["SCALE_K"] / scaling["SCALE_S"]
+        speeds.append(np.linalg.norm(np.load(sim_dir / "velocities.npy"), axis=1) * speed_factor)
+        rot_speeds.append(np.load(sim_dir / "rot_velocities.npy") / interval)
     return speeds, rot_speeds, fps
 
 
@@ -49,6 +58,10 @@ def main() -> None:
     parser.add_argument("--stages", nargs="+", default=STAGES, choices=STAGES)
     parser.add_argument("--seeds", nargs="+", type=int, default=list(range(1, 27)))
     parser.add_argument("--rs-max", type=float, default=np.pi, help="rad/s (default pi)")
+    parser.add_argument("--speed-max", type=float, default=None,
+                        help="m/s (default: SPEED_RANGE of the rat-analysis config, 0.15)")
+    parser.add_argument("--to-rat-units", action="store_true",
+                        help="robot-scaled data: undo the scaling (speed x k/s, time / k)")
     parser.add_argument("--out-dir", type=Path, default=None)
     args = parser.parse_args()
 
@@ -56,6 +69,8 @@ def main() -> None:
         (REPO_ROOT / "real_data_exploration/cluster_locomotion/config.yaml").read_text()
     )
     speed_bins, speed_range = cfg["SPEED_BINS"], cfg["SPEED_RANGE"]
+    if args.speed_max is not None:
+        speed_range = [0.0, args.speed_max]
     rs_bins, rs_range = cfg["RS_BINS"], [-args.rs_max, args.rs_max]
     speed_edges = np.linspace(*speed_range, speed_bins + 1)
     rs_edges = np.linspace(*rs_range, rs_bins + 1)
@@ -66,7 +81,7 @@ def main() -> None:
     arrays = {"speed_edges": speed_edges, "rs_edges": rs_edges, "seeds": np.array(args.seeds)}
     rows = []
     for stage in args.stages:
-        speeds, rot_speeds, fps = load_stage(args.data_root, stage, args.seeds)
+        speeds, rot_speeds, fps = load_stage(args.data_root, stage, args.seeds, args.to_rat_units)
         arrays[f"{stage}_speed_hist"] = calculate_hist_occ(speeds, speed_bins, speed_range)
         arrays[f"{stage}_rs_hist"] = calculate_hist_occ(rot_speeds, rs_bins, rs_range)
         s, r = np.concatenate(speeds), np.concatenate(rot_speeds)

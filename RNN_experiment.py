@@ -346,6 +346,15 @@ if __name__ == '__main__':
         "training and activity outputs are written under it. Relative paths "
         "are resolved against the repository. Default is <repo>/data.")
     argparser.add_argument(
+        '--episode_frames', type=int, default=None,
+        help="Keep only the first N saved frames of every train/test/activity "
+        "simulation (before normalization and stride subsampling). Default is "
+        "None, i.e. the full simulations.")
+    argparser.add_argument(
+        '--n_train_episodes', type=int, default=None,
+        help="Train on only the first N of the 17 training simulations; the "
+        "test and activity simulations are unchanged. Default is None, i.e. all 17.")
+    argparser.add_argument(
         '--seed_offset', type=int, default=0,
         help="Added to every train/test/activity simulation seed. With 26, "
         "seeds 27-43 train, 44-47 test and 44-52 activity. Default is 0.")
@@ -498,6 +507,11 @@ if __name__ == '__main__':
         help="Exclude never-visited position bins (e.g. obstacles) from the "
         "spatial information, aligning the occupancy map with the rate maps. "
         "Results go to an act_* directory suffixed with '_exclunvisited'.")
+    argparser.add_argument(
+        '--ratemap_margin', type=float, default=0.,
+        help="Unreachable band along the walls in meters (e.g. the agent radius). "
+        "Position bins then span [margin, env_dim - margin]. Results go to an "
+        "act_* directory suffixed with '_margin<value>'. Default is 0.")
     argparser.add_argument(
         '--activity_transform', type=str, default='identity',
         choices=['identity', 'softplus', 'minmax', 'halfshift'],

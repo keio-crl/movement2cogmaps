@@ -154,6 +154,11 @@ class RNNTrainer():
             n_trials_train+1,
             n_trials_train+n_trials_test+n_trials_act+1
         ))
+        n_train_episodes = getattr(self.args, 'n_train_episodes', None)
+        if n_train_episodes:
+            if not 0 < n_train_episodes <= n_trials_train:
+                raise ValueError(f"--n_train_episodes must be in 1..{n_trials_train}")
+            self.args.seeds_train = self.args.seeds_train[:n_train_episodes]
         seed_offset = getattr(self.args, 'seed_offset', 0) or 0
         self.args.seeds_train = [s + seed_offset for s in self.args.seeds_train]
         self.args.seeds_test = [s + seed_offset for s in self.args.seeds_test]
@@ -247,6 +252,15 @@ class RNNTrainer():
                 np.load(os.path.join(ld, "riab_simulation/rot_velocities.npy")).astype(np.float32),
                 axis=-1
             ))
+        n_frames = getattr(self.args, 'episode_frames', None)
+        if n_frames:
+            print(f"\n[*] Keeping the first {n_frames} frames of every simulation")
+            for data in (videos, thetas, positions, velocities, rot_velocities):
+                for idx, d in enumerate(data):
+                    if len(d) == 0 : continue
+                    if len(d) < n_frames:
+                        raise ValueError(f"Simulation {idx} has only {len(d)} frames (< {n_frames})")
+                    data[idx] = d[:n_frames]
         print()
         return videos, thetas, positions, velocities, rot_velocities
     

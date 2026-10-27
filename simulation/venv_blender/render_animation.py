@@ -18,7 +18,7 @@ def main(args):
         config = yaml.safe_load(f)
 
     FPS = config['FPS']
-    ENV_DIM = config['ENV_DIM']
+    ENV_DIM = args.env_dim if args.env_dim is not None else config['ENV_DIM']
     SECONDS = config['SECONDS']
 
     ENVIRONMENT_TYPE = ENVIRONMENT.split('_')[0]
@@ -86,6 +86,9 @@ if __name__ == "__main__":
         '--data-root', type=Path, default=REPO_ROOT / "data",
         help='Directory containing <env type>/<behaviour>/exp_* folders.')
     parser.add_argument('--seeds', type=int, nargs='+', default=list(range(1, 26 +1)))
+    parser.add_argument(
+        '--env-dim', type=float, default=None,
+        help='ENV_DIM in the experiment folder names (default: simulation/config.yaml).')
     parser.add_argument(
         '--blender', type=Path, default=REPO_ROOT / "tools/blender/blender",
         help='Path to the Blender executable.')

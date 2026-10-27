@@ -43,7 +43,8 @@ class RateMaps():
     PLACE_SI_TH = 0.3
 
     def __init__(
-        self, positions:np.array, env_dim:float, exclude_unvisited:bool=False
+        self, positions:np.array, env_dim:float, exclude_unvisited:bool=False,
+        margin:float=0.
     ):
         """
         Args:
@@ -51,13 +52,16 @@ class RateMaps():
         env_dim (float): Dimension of the environment.
         exclude_unvisited (bool): Align the occupancy map with the rate maps
             and leave never-visited bins out of the spatial information.
+        margin (float): Unreachable band along the walls (e.g. the agent
+            radius); the bins span [margin, env_dim - margin].
         """
 
         self.positions = positions
         self.exclude_unvisited = exclude_unvisited
         self.sigma = self.SIGMA_SMOOTHING
         self.env_dim = env_dim
-        self.bin_size = env_dim/self.N_SAMPLES_POS
+        self.limits = [(margin, env_dim - margin)] * 2
+        self.bin_size = (env_dim - 2*margin)/self.N_SAMPLES_POS
 
 
     def calculate_rate_maps(self, latent_activity:np.array):
@@ -74,7 +78,7 @@ class RateMaps():
         rate_maps, occ_smoothed = get_smooth_rate_map(
             latent_activity,
             self.positions,
-            limits = [(0, self.env_dim), (0, self.env_dim)],
+            limits = self.limits,
             n_bins = self.N_SAMPLES_POS,
             sigma = self.sigma
         )
@@ -309,7 +313,7 @@ class RateMaps():
                 get_smooth_rate_map(
                     latent_activity[indices==idx],
                     self.positions[indices==idx],
-                    limits = [(0, self.env_dim), (0, self.env_dim)],
+                    limits = self.limits,
                     n_bins = self.N_SAMPLES_POS,
                     sigma = self.sigma
                 )[0]
@@ -349,7 +353,7 @@ class RateMapsPlotter():
 
     def __init__(
         self, exp_dir:str, save_figures:bool=True, wandb_log:bool=False,
-        obstacles:List[dict]=None, env_dim:float=None
+        obstacles:List[dict]=None, env_dim:float=None, margin:float=0.
     ):
         """
         Args:
@@ -365,6 +369,7 @@ class RateMapsPlotter():
         self.wandb_log = wandb_log
         self.obstacles = obstacles or []
         self.env_dim = env_dim
+        self.margin = margin
         # Never-visited bins (NaN) are drawn in gray instead of the background.
         self.cmap = plt.get_cmap('jet').copy()
         self.cmap.set_bad('0.75')
@@ -373,9 +378,9 @@ class RateMapsPlotter():
         """Outline the obstacles on a rate map image (transposed and y-flipped)."""
         if not self.obstacles:
             return
-        bin_size = self.env_dim / n_bins
+        bin_size = (self.env_dim - 2*self.margin) / n_bins
         for obstacle in self.obstacles:
-            cx, cy = obstacle['CENTER']
+            cx, cy = np.subtract(obstacle['CENTER'], self.margin)
             width, depth = np.broadcast_to(obstacle['SIZE'], 2)
             ax.add_patch(plt.Rectangle(
                 ((cx - width / 2) / bin_size - 0.5, n_bins - (cy + depth / 2) / bin_size - 0.5),
@@ -766,7 +771,8 @@ class PolarMaps():
         return np.array(correlations)
       
     def calculate_pm_vs_place(
-        self, latent_activity:np.array, positions:np.array, env_dim:float
+        self, latent_activity:np.array, positions:np.array, env_dim:float,
+        margin:float=0.
     ):
         """
         Calculate the polar data for the given latent data subdivided by positional bins.
@@ -775,12 +781,13 @@ class PolarMaps():
             latent_activity (np.array): (n_samples, n_units) The latent data, hidden units' activity.
             positions (np.array): (n_samples, 2) Array of positions.
             env_dim (float): Dimension of the environment.
+            margin (float): Unreachable band along the walls; the bins span [margin, env_dim - margin].
 
         Returns:
             np.array: (n_neurons, n_bins, n_samples_pos, n_samples_thet) The latent activity in a polar space and in positional bins.
         """
         n_bins = PM_VS_PLACE_BINS
-        indices_pos = np.digitize(positions, bins=np.linspace(0, env_dim, n_bins+1))
+        indices_pos = np.digitize(positions, bins=np.linspace(margin, env_dim - margin, n_bins+1))
 
         polar_maps_place = np.zeros(
             (n_bins, n_bins, latent_activity.shape[-1], self.N_SAMPLES_THET)
@@ -842,6 +849,10 @@ class PolarMapsPlotter():
         self.wandb_log = wandb_log
 
     def single_polar_map(self, ax, pm):
+        # A positional bin never visited (e.g. short simulations) has no HD samples.
+        if not np.isfinite(pm).any():
+            ax.axis('off')
+            return
         ax.plot(
             np.append(self.tts, self.tts[0]), # we want to close the circle
             np.append(pm, pm[0]), # we want to close the circle
@@ -853,7 +864,7 @@ class PolarMapsPlotter():
         ax.set_theta_direction(-1)
         ax.set_theta_zero_location('N') # move 0 to the north
 
-        max_radius = np.max(pm)
+        max_radius = np.nanmax(pm)
         padding = max_radius * 0.15
         ax.set_rmax(max_radius + padding)
         ax.set_thetagrids([0, 90, 180, 270])

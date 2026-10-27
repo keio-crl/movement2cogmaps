@@ -32,6 +32,7 @@ class RNNActiviter():
         # was introduced.
         if not hasattr(self.args, 'activity_transform'):
             self.args.activity_transform = 'identity'
+        self.ratemap_margin = getattr(self.args, 'ratemap_margin', 0.)
 
     def redefine_exp_dir(self):
         """解析条件を名前に含めた結果保存ディレクトリを作成する。"""
@@ -47,6 +48,8 @@ class RNNActiviter():
             dir_name += f"_cells-{cell_source}"
         if getattr(self.args, 'ratemap_exclude_unvisited', False):
             dir_name += "_exclunvisited"
+        if self.ratemap_margin:
+            dir_name += f"_margin{self.ratemap_margin:g}"
         self.exp_dir = os.path.join(self.exp_dir, dir_name)
         os.makedirs(self.exp_dir, exist_ok=True)
         print(f"\n[+] Created activity directory\n\t{self.exp_dir}")
@@ -331,6 +334,7 @@ class RNNActiviter():
         rm_helper = RateMaps(
             positions, self.args.env_dim,
             exclude_unvisited=getattr(self.args, 'ratemap_exclude_unvisited', False),
+            margin=self.ratemap_margin,
         )
         rate_maps, occ = rm_helper.calculate_rate_maps(latent_activity)
         np.save(os.path.join(exp_dir_place, 'rate_maps.npy'), rate_maps)
@@ -343,10 +347,10 @@ class RNNActiviter():
         rm_half1, rm_half2 = None, None
         try:
             print("\tRate maps stability")
-            pu_half1 = RateMaps(pos_half1, self.args.env_dim)
+            pu_half1 = RateMaps(pos_half1, self.args.env_dim, margin=self.ratemap_margin)
             rm_half1, _ = pu_half1.calculate_rate_maps(lact_half1)
 
-            pu_half2 = RateMaps(pos_half2, self.args.env_dim)
+            pu_half2 = RateMaps(pos_half2, self.args.env_dim, margin=self.ratemap_margin)
             rm_half2, _ = pu_half2.calculate_rate_maps(lact_half2)
 
             rm_stability = rm_helper.rate_maps_stability(rm_half1, rm_half2)
@@ -415,7 +419,8 @@ class RNNActiviter():
         """Rate map、SIr分布、セル分類を示すPlace関連の図を保存する。"""
         rm_plotter = RateMapsPlotter(
             self.exp_dir, wandb_log=self.args.wandb,
-            obstacles=self.load_obstacles(), env_dim=self.args.env_dim
+            obstacles=self.load_obstacles(), env_dim=self.args.env_dim,
+            margin=self.ratemap_margin
         )
         rm_plotter.average_rate_map(rate_maps)
         rm_plotter.metric_histogram(si_r, "Spatial Information (SIr)")
@@ -469,7 +474,9 @@ class RNNActiviter():
         # pm_vs_place_stability：頭部方向活動表現が場所によらず同じになるか
         # HD cells stability:頭部方向表現が時間を跨いで再現されるか
         print("\tCalculating polar maps vs place")
-        pm_vs_place = pm_helper.calculate_pm_vs_place(latent_activity, positions, self.args.env_dim)
+        pm_vs_place = pm_helper.calculate_pm_vs_place(
+            latent_activity, positions, self.args.env_dim, margin=self.ratemap_margin
+        )
         pm_vs_place_stability = pm_helper.pm_vs_place_stability(polar_maps, pm_vs_place)
         np.save(os.path.join(exp_dir_hd, 'pm_vs_place.npy'), pm_vs_place)
         np.save(os.path.join(exp_dir_hd, 'pm_vs_place_stability.npy'), pm_vs_place_stability)

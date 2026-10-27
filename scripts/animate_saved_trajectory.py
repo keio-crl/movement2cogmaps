@@ -54,6 +54,9 @@ def main() -> None:
     config = yaml.safe_load((args.exp_dir / "config.yaml").read_text())
     pos = np.load(args.exp_dir / "riab_simulation" / "positions.npy")
     fps = config["FPS"]
+    # Robot-scaled data (scripts/simulate_scaled_robot.py) store one sample per
+    # FRAME_INTERVAL_S real seconds; time labels use that interval.
+    interval = config.get("ROBOT_SCALING", {}).get("FRAME_INTERVAL_S", 1 / fps)
     behaviour = args.exp_dir.parent.name
     label = f"{behaviour} {args.exp_dir.name.rsplit('_', 1)[-1]}"
     out = args.out or Path("reports/riab_gifs") / f"{args.exp_dir.parents[2].name}_{behaviour}.gif"
@@ -62,7 +65,7 @@ def main() -> None:
     fig, ax = plt.subplots(figsize=(4, 4))
     setup_axes(ax, config)
     ax.plot(pos[:, 0], pos[:, 1], color="tab:purple", lw=0.5)
-    ax.set_title(f"{label}  (0-{len(pos) / fps:.0f} s)", fontsize=9)
+    ax.set_title(f"{label}  (0-{len(pos) * interval:.0f} s)", fontsize=9)
     fig.tight_layout()
     fig.savefig(out.with_suffix(".png"), dpi=120)
     plt.close(fig)
@@ -80,7 +83,7 @@ def main() -> None:
         history.set_data(pos[:t, 0], pos[:t, 1])
         trail_line.set_data(pos[max(0, t - trail) : t, 0], pos[max(0, t - trail) : t, 1])
         head.set_data(pos[t - 1 : t, 0], pos[t - 1 : t, 1])
-        title.set_text(f"{label}   t = {t / fps:.0f} s")
+        title.set_text(f"{label}   t = {t * interval:.0f} s")
         return history, trail_line, head, title
 
     frames = range(args.frame_step, len(pos) + 1, args.frame_step)

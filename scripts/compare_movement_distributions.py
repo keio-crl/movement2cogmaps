@@ -52,8 +52,10 @@ def main() -> None:
             ax.spines[["top", "right"]].set_visible(False)
             ax.grid(axis="y", color="0.9", lw=0.6)
             ax.set_axisbelow(True)
-    axes[0, -1].legend(frameon=False)
-    fig.tight_layout()
+    # A figure-level legend keeps long labels from squeezing the panels.
+    handles, labels = axes[0, 0].get_legend_handles_labels()
+    fig.legend(handles, labels, loc="upper center", ncol=2, frameon=False)
+    fig.tight_layout(rect=(0, 0, 1, 0.94))
     args.out.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(args.out, dpi=150)
     plt.close(fig)

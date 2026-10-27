@@ -28,7 +28,7 @@ SMOOTHINGS = ("start2d", "direct")
 
 
 def seed_matrices(pos, fps, box_length, bins, window, discount, sigma):
-    """Return {(self_transitions, smoothing): (B^2, B^2) matrix with NaN unvisited rows}."""
+    """Return matrices with unvisited bins masked as destinations and starts."""
     pos_1s = pos[fps - 1::fps]
     idx = np.clip((pos_1s / box_length * bins).astype(int), 0, bins - 1)
     b = idx[:, 0] * bins + idx[:, 1]
@@ -54,7 +54,11 @@ def seed_matrices(pos, fps, box_length, bins, window, discount, sigma):
             "direct": gaussian_filter(tm, sigma=sigma),
         }
         for name, m in smoothed.items():
-            m[~visited] = np.nan
+            # Rows are destination bins and columns are starting bins.  Mask
+            # both after smoothing so obstacle/unvisited bins cannot receive
+            # interpolated values on only one axis.
+            m[~visited, :] = np.nan
+            m[:, ~visited] = np.nan
             out[(keep_self, name)] = m
     return out
 
