@@ -1,0 +1,20 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>turtlebot_obstacle_fusion</name>
+  <version>0.1.0</version>
+  <description>Conservative 2D obstacle range fusion for TurtleBot LiDAR and OAK-D point clouds.</description>
+  <maintainer email="maintainer@example.invalid">TurtleBot maintainer</maintainer>
+  <license>Apache-2.0</license>
+  <buildtool_depend>ament_python</buildtool_depend>
+  <depend>geometry_msgs</depend>
+  <depend>ament_index_python</depend>
+  <depend>launch</depend>
+  <depend>launch_ros</depend>
+  <depend>rclpy</depend>
+  <depend>sensor_msgs</depend>
+  <depend>sensor_msgs_py</depend>
+  <depend>tf2_ros</depend>
+  <depend>visualization_msgs</depend>
+  <test_depend>python3-pytest</test_depend>
+  <export><build_type>ament_python</build_type></export>
+</package>

@@ -1,0 +1,17 @@
+obstacle_fusion:
+  ros__parameters:
+    scan_topic: /scan
+    depth_cloud_topic: /oakd/points
+    output_topic: /fused_scan
+    base_frame: base_link
+    angle_bin_degrees: 1.0
+    depth_min_m: 0.4
+    depth_max_m: 4.0
+    obstacle_min_height_m: 0.03
+    obstacle_max_height_m: 0.40
+    min_depth_points_per_bin: 4
+    max_depth_age_s: 0.30
+    breakpoint_base_m: 0.03
+    breakpoint_scale: 2.25
+    minimum_cluster_points: 4
+    rdp_epsilon_m: 0.04
