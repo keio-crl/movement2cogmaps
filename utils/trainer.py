@@ -169,7 +169,7 @@ class RNNTrainer():
         # フレームレート、一回のシミュレート時間、フレームの次元、フレームの間引き設定
         self.args.fps = 10
         self.args.seconds = 720
-        self.args.frame_dim = [128, 64]
+        self.args.frame_dim = list(getattr(self.args, 'frame_dim', None) or [128, 64])
         self.args.frame_subsampling = 4
 
         # 未来の予測に対する割引係数

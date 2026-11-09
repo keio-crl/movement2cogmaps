@@ -1,0 +1,21 @@
+{
+  "files.watcherExclude": {
+    "**/data/**": true,
+    "**/data_*/**": true,
+    "**/wandb/**": true,
+    "**/*_results/**": true,
+    "**/.git/objects/**": true
+  },
+  "search.exclude": {
+    "**/data/**": true,
+    "**/data_*/**": true,
+    "**/wandb/**": true
+  },
+  "search.followSymlinks": false,
+  "python.analysis.exclude": [
+    "**/data/**",
+    "**/data_*/**",
+    "**/wandb/**",
+    "**/.venv*/**"
+  ]
+}

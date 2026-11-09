@@ -79,11 +79,11 @@ def motion_stats(vel, dt):
 
 
 def simulate(task):
-    behaviour, seed, params, geom, out_dir = task
+    behaviour, seed, rng_seed, params, geom, out_dir = task
     room, r, s, k, substeps, v_max, w_max = geom
     frame_interval = RAT_FRAME_INTERVAL * k
     dt = frame_interval / substeps
-    np.random.seed(seed)
+    np.random.seed(rng_seed)
     env = Environment(params={"scale": room - 2 * r, "aspect": 1})
     agent = Agent(env, params={
         "dt": dt,
@@ -144,6 +144,9 @@ def main() -> None:
     parser.add_argument("--substeps", type=int, default=36, help="internal steps per saved sample")
     parser.add_argument("--behaviours", nargs="+", default=["crawl", "walk", "run", "adult"])
     parser.add_argument("--seeds", nargs="+", type=int, default=list(range(1, 27)))
+    parser.add_argument(
+        "--seed-offset", type=int, default=0,
+        help="random seed = folder seed + offset (folders keep seed01, seed02, ...)")
     parser.add_argument("--data-root", type=Path, default=REPO_ROOT / "data_robot_room")
     parser.add_argument("--workers", type=int, default=32)
     parser.add_argument("--overwrite", action="store_true")
@@ -161,6 +164,7 @@ def main() -> None:
         "ENV_EPS": args.robot_radius,
         "BEHAVIOURS": behaviours,
         "WALL_REPEL_DISTANCE": RAT_WALL_REPEL * s,
+        "RNG_SEED_OFFSET": args.seed_offset,
         "ROBOT_SCALING": {
             "note": "FPS/SECONDS count samples (rat time); real time = FPS/SECONDS scaled by k",
             "ROOM_XY_M": [args.room_x, args.room_y],
@@ -184,7 +188,7 @@ def main() -> None:
             out_dir.mkdir(parents=True, exist_ok=True)
             (out_dir / "config.yaml").write_text(yaml.safe_dump(config, sort_keys=False))
             geom = (room, args.robot_radius, s, k, args.substeps, args.v_max, args.w_max)
-            tasks.append((behaviour, seed, behaviours[behaviour], geom, out_dir))
+            tasks.append((behaviour, seed, seed + args.seed_offset, behaviours[behaviour], geom, out_dir))
     with ProcessPoolExecutor(max_workers=args.workers) as pool:
         for message in pool.map(simulate, tasks):
             print(message, flush=True)

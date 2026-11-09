@@ -36,6 +36,8 @@ def compare_parameters(
     occ_pos_dict, occ_pos,
     tm_fold_dict, tm_fold,
 ):
+"""
+    Compare the distributions of the different parameters using Jensen-Shannon divergence."""
     js_s_dict, js_rs_dict = {}, {}
     js_pos_dict, js_tm_dict = {}, {}
 

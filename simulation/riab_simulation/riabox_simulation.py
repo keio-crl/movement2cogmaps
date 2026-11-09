@@ -101,7 +101,7 @@ def main(args):
             config['SECONDS'],
             config['FPS'],
             exp_folder,
-            s,
+            s + args.seed_offset,
             smooth_theta=SMOOTH_THETA,
             save_experiment=SAVE_EXPERIMENT,
             increase_fps=INCREASE_FPS
@@ -116,7 +116,11 @@ def main(args):
 
         # Copy the config file to each experiment folder
         if SAVE_EXPERIMENT:
-            shutil.copy(args.config, os.path.join(os.path.dirname(exp_folder), "config.yaml"))
+            config_copy = os.path.join(os.path.dirname(exp_folder), "config.yaml")
+            shutil.copy(args.config, config_copy)
+            if args.seed_offset:
+                with open(config_copy, "a") as f:
+                    f.write(f"\nRNG_SEED_OFFSET: {args.seed_offset}\n")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -130,6 +134,9 @@ if __name__ == "__main__":
         '--data_root', type=Path, default=REPO_ROOT / "data",
         help='Directory where <environment>/<behaviour>/exp_* folders are written.')
     parser.add_argument('--seeds', type=int, nargs='+', default=list(range(1, 26 +1)))
+    parser.add_argument(
+        '--seed_offset', type=int, default=0,
+        help='Random seed = folder seed + offset (folders keep seed01, seed02, ...).')
     parser.add_argument(
         '--config', type=Path, default=REPO_ROOT / "simulation/config.yaml",
         help='Simulation config; an optional OBSTACLES list adds square pillars to the box.')

@@ -359,6 +359,10 @@ if __name__ == '__main__':
         help="Added to every train/test/activity simulation seed. With 26, "
         "seeds 27-43 train, 44-47 test and 44-52 activity. Default is 0.")
     argparser.add_argument(
+        '--frame_dim', type=int, nargs=2, default=[128, 64], metavar=('WIDTH', 'HEIGHT'),
+        help="Rendered frame size in pixels (config FRAME_DIM); frames are "
+        "downsampled by frame_subsampling before training. Default is 128 64.")
+    argparser.add_argument(
         '--n_gridcells', type=int, default=0,
         help="The number of grid cells to be used as input to the model. "+\
         "Default is zero, i.e. no grid cells input is given.")

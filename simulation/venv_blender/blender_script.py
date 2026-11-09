@@ -64,6 +64,14 @@ for i, obstacle in enumerate(config.get('OBSTACLES') or []):
     print(f"Added {pillar.name}: centre {obstacle['CENTER']}, size {size}, height {height}")
 
 camera_center =  bpy.data.objects['Camera_center']
+if 'CAMERA_HFOV_DEG' in config:
+    # Replace the equirectangular panorama with a pinhole camera of the given horizontal
+    # field of view; the vertical one follows from the FRAME_DIM aspect ratio.
+    camera_center.data.type = 'PERSP'
+    camera_center.data.sensor_fit = 'HORIZONTAL'
+    camera_center.data.angle_x = np.radians(config['CAMERA_HFOV_DEG'])
+    vfov = 2 * np.degrees(np.arctan(np.tan(camera_center.data.angle_x / 2) * FRAME_DIM[1] / FRAME_DIM[0]))
+    print(f"Pinhole camera: {config['CAMERA_HFOV_DEG']} x {vfov:.1f} deg")
 
 frame_count = 1
 max_frame = len(pos)

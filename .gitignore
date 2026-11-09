@@ -243,3 +243,10 @@ data_center/
 data_centerU/
 data_centerU_test/
 data_robot_room/
+data_robot_room_ratrange/
+data_robot_room_o1000/
+data_robot_room_o2000/
+data_box_fov80/
+data_box_o1000/
+data_box_o2000/
+data_box_o3000/
