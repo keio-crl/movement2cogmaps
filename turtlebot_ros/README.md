@@ -23,9 +23,10 @@ ros2 topic list | rg 'scan|point'
 ros2 run tf2_ros tf2_echo base_link <point-cloud-frame>
 ```
 
-`/scan` must be a `sensor_msgs/msg/LaserScan`. The OAK-D driver must publish an XYZ
-`sensor_msgs/msg/PointCloud2`; set `depth_cloud_topic` to that topic. The node transforms both
-inputs into `base_link`, so the corresponding TF transforms must be available.
+`/scan` must be a `sensor_msgs/msg/LaserScan`. The OAK-D driver must publish a metric depth
+`sensor_msgs/msg/Image` and a matching `sensor_msgs/msg/CameraInfo`; set `depth_topic` and
+`camera_info_topic` to their actual names. The node transforms both inputs into `base_link`, so
+the corresponding TF transforms must be available.
 
 The node publishes:
 

@@ -12,7 +12,6 @@
   <depend>launch_ros</depend>
   <depend>rclpy</depend>
   <depend>sensor_msgs</depend>
-  <depend>sensor_msgs_py</depend>
   <depend>tf2_ros</depend>
   <depend>visualization_msgs</depend>
   <test_depend>python3-pytest</test_depend>
