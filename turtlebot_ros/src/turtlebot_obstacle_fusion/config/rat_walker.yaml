@@ -1,0 +1,23 @@
+rat_walker:
+  ros__parameters:
+    scan_topic: /fused_scan
+    odom_topic: /odom
+    cmd_vel_topic: /cmd_vel
+    behaviour_topic: /rat_behaviour
+    status_topic: /rat_walker/status
+    length_scale: 8.161          # s
+    time_scale: 7.248            # k
+    robot_radius_m: 0.1705
+    control_period_k: 0.02       # RatInABox update interval = 0.02 k s
+    save_period_k: 0.1           # saving interval = 0.1 k s
+    record_duration_s: 5129.0    # recorded time, excluding stops and in-place turns
+    max_linear_m_s: 0.31
+    max_angular_rad_s: 1.9
+    turn_tolerance_deg: 3.0
+    collision_margin_m: 0.05     # extra body margin for collision detection only
+    sensor_timeout_s: 0.5
+    breakpoint_base_m: 0.03
+    breakpoint_scale: 2.25
+    rdp_epsilon_m: 0.04
+    log_dir: ~/rat_walker_logs
+    seed: -1                     # negative = random

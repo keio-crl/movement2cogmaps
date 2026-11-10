@@ -35,3 +35,29 @@ The node publishes:
 
 Before connecting `/fused_scan` to motion control, verify it with a stationary robot, RViz, and
 known-distance obstacles. Tune the YAML parameters after recording a rosbag from the actual robot.
+
+## Rat-like random walk (RatInABox OU model)
+
+`rat_walker` drives the robot with the RatInABox 2D motion model (OU processes on the rotational
+velocity and on the Rayleigh-distributed speed, plus wall repulsion with thigmotaxis), scaled to
+the robot with `length_scale` (s = 8.161) and `time_scale` (k = 7.248). Obstacles are the RDP line
+segments of `/fused_scan` (per-angle minimum of LiDAR and depth). The model update runs every
+0.02 k s, a CSV row is logged every 0.1 k s, and a session ends after 5129 s of recorded time.
+
+When the next step would bring the robot body (radius + `collision_margin_m`) into an obstacle,
+the robot stops, pauses recording, turns in place to the mirrored heading, then resumes at
+0.5 × speed_mean and continues recording.
+
+```bash
+ros2 launch turtlebot_obstacle_fusion rat_walker.launch.py   # fusion + walker; robot stays still
+ros2 run turtlebot_obstacle_fusion rat_behaviour_cli         # in another terminal
+behaviour> adult      # crawl | walk | run | adult: start a new session with that behaviour
+behaviour> status     # state, behaviour and recorded time
+behaviour> stop       # stop the robot and close the log
+```
+
+Logs are written to `~/rat_walker_logs/<behaviour>_<date>.csv` with columns
+`t, behaviour, x, y, yaw, cmd_linear, cmd_angular, v_net_x, v_net_y, rot_velocity, closest_wall`
+(`x, y, yaw` from `/odom`). The robot holds still whenever `/fused_scan` or `/odom` is older than
+`sensor_timeout_s`. Parameters are in `config/rat_walker.yaml`; check the actual publishers with
+`ros2 topic info -v /odom` and `ros2 topic info -v /cmd_vel` on the robot before the first run.

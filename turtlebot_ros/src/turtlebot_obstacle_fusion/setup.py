@@ -19,7 +19,13 @@ setup(
     zip_safe=True,
     maintainer="TurtleBot maintainer",
     maintainer_email="maintainer@example.invalid",
-    description="Conservative LiDAR and OAK-D obstacle range fusion.",
+    description="LiDAR and OAK-D obstacle fusion and a RatInABox-style random walker.",
     license="Apache-2.0",
-    entry_points={"console_scripts": ["obstacle_fusion = turtlebot_obstacle_fusion.node:main"]},
+    entry_points={
+        "console_scripts": [
+            "obstacle_fusion = turtlebot_obstacle_fusion.node:main",
+            "rat_walker = turtlebot_obstacle_fusion.rat_walker_node:main",
+            "rat_behaviour_cli = turtlebot_obstacle_fusion.behaviour_cli:main",
+        ]
+    },
 )
