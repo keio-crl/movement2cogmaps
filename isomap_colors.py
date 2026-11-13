@@ -109,10 +109,10 @@ def plot_xy_color_reference(axis, bounds, resolution: int = 128) -> None:
     axis.set_xlim(*x_display)
     axis.set_ylim(*y_display)
     corner_labels = (
-        (0.02, 0.02, "x low, y low", "white", "left", "bottom"),
-        (0.98, 0.02, "x high, y low", "white", "right", "bottom"),
-        (0.02, 0.98, "x low, y high", "black", "left", "top"),
-        (0.98, 0.98, "x high, y high", "black", "right", "top"),
+        (0.02, 0.02, "x low\ny low", "white", "left", "bottom"),
+        (0.98, 0.02, "x high\ny low", "white", "right", "bottom"),
+        (0.02, 0.98, "x low\ny high", "black", "left", "top"),
+        (0.98, 0.98, "x high\ny high", "black", "right", "top"),
     )
     for x, y, label, color, horizontal, vertical in corner_labels:
         axis.text(
