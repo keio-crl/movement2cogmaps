@@ -107,6 +107,23 @@ def closest_points(point: np.ndarray, walls: np.ndarray) -> np.ndarray:
     return start + fraction[:, None] * direction
 
 
+def colliding_wall(walls: Sequence[Segment] | np.ndarray, displacement: np.ndarray, body_radius: float) -> Optional[np.ndarray]:
+    """Return the wall a disc of ``body_radius`` at the origin would penetrate further by moving ``displacement``.
+
+    Moving away from or parallel to a wall that is already closer than ``body_radius`` is allowed,
+    so the robot can always leave a wall it is touching.
+    """
+    walls = np.asarray(walls, dtype=float).reshape(-1, 2, 2)
+    if len(walls) == 0:
+        return None
+    before = np.linalg.norm(closest_points(np.zeros(2), walls), axis=1)
+    after = np.linalg.norm(displacement - closest_points(displacement, walls), axis=1)
+    hits = np.flatnonzero((after < body_radius) & (after < before))
+    if len(hits) == 0:
+        return None
+    return walls[hits[np.argmin(after[hits])]]
+
+
 @dataclass
 class StepResult:
     """Outcome of one motion update."""
@@ -176,16 +193,7 @@ class RatMotion:
 
     def colliding_wall(self, walls: Sequence[Segment] | np.ndarray, displacement: np.ndarray) -> Optional[np.ndarray]:
         """Return the wall the robot body would penetrate further by moving ``displacement``."""
-        walls = np.asarray(walls, dtype=float).reshape(-1, 2, 2)
-        if len(walls) == 0:
-            return None
-        origin = np.zeros(2)
-        before = np.linalg.norm(closest_points(origin, walls), axis=1)
-        after = np.linalg.norm(displacement - closest_points(displacement, walls), axis=1)
-        hits = np.flatnonzero((after < self.robot_radius + self.collision_margin) & (after < before))
-        if len(hits) == 0:
-            return None
-        return walls[hits[np.argmin(after[hits])]]
+        return colliding_wall(walls, displacement, self.robot_radius + self.collision_margin)
 
     def bounce(self, wall: np.ndarray) -> None:
         """Mirror the velocity off ``wall`` and slow down to half the mean speed, as RatInABox.

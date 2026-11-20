@@ -26,6 +26,8 @@ setup(
             "obstacle_fusion = turtlebot_obstacle_fusion.node:main",
             "rat_walker = turtlebot_obstacle_fusion.rat_walker_node:main",
             "rat_behaviour_cli = turtlebot_obstacle_fusion.behaviour_cli:main",
+            "collision_test = turtlebot_obstacle_fusion.collision_test_node:main",
+            "collision_test_cli = turtlebot_obstacle_fusion.collision_test_cli:main",
         ]
     },
 )

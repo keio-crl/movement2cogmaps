@@ -98,3 +98,11 @@ def test_bounce_off_isolated_point_reverses_head_on_motion() -> None:
     model.velocity = np.array([0.2, 0.0])
     model.bounce(np.array([[0.15, 0.0], [0.15, 0.0]]))
     assert np.allclose(model.velocity, [-0.05, 0.0])
+
+
+def test_module_colliding_wall_lets_robot_leave_a_touching_wall() -> None:
+    from turtlebot_obstacle_fusion.rat_motion import colliding_wall
+    wall = [((0.2, -1.0), (0.2, 1.0))]
+    assert colliding_wall(wall, np.array([0.02, 0.0]), 0.22) is not None
+    assert colliding_wall(wall, np.array([-0.02, 0.0]), 0.22) is None
+    assert colliding_wall(wall, np.array([0.0, 0.02]), 0.22) is None

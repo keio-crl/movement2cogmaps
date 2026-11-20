@@ -1,0 +1,33 @@
+depth_obstacle:
+  ros__parameters:
+    image_topic: /color/preview/image/compressed
+    camera_info_topic: /color/preview/camera_info
+    scan_topic: /scan
+    output_topic: /depth_obstacles
+    base_frame: base_link
+    camera_frame: oakd_pro_rgb_camera_optical_frame
+    weights_path: ~/tomita-turtlebot/depth_anything_v2_vits.pth
+    device: cuda:0
+    input_size: 518
+    infer_hz: 5.0
+    scale_source: floor            # floor (known camera pose, recommended) or lidar
+    floor_min_m: 0.3               # floor pixels used for scaling: horizontal distance range
+    floor_max_m: 3.0
+    max_scan_age_s: 0.3            # LiDAR scan used for scaling or the check must be newer
+    fit_hold_s: 0.0                # reuse the last good scale fit for this long (0: the scale changes every frame)
+    fit_min_pairs: 15
+    fit_inlier_tolerance: 0.15     # relative depth error of an inlier LiDAR pair
+    fit_max_residual: 0.1          # reject the fit above this median relative error
+    fit_min_inlier_ratio: 0.0      # reject the fit when fewer pairs agree (floor hidden by an obstacle); 0.6 recommended, 0 = off
+    sample_radius_px: 2
+    depth_min_m: 0.1
+    depth_max_m: 2.5
+    obstacle_min_height_m: 0.05    # below = floor
+    obstacle_max_height_m: 0.40    # above = higher than the robot
+    pixel_stride: 4
+    angle_bin_degrees: 1.0
+    min_points_per_bin: 5
+    robot_radius_m: 0.1705
+    collision_margin_m: 0.05
+    save_period_s: 1.0
+    log_dir: ~/depth_obstacle_logs

@@ -1,0 +1,33 @@
+collision_test:
+  ros__parameters:
+    scan_topic: /scan              # LiDAR only
+    odom_topic: /odom
+    cmd_vel_topic: /cmd_vel
+    base_frame: base_link
+    linear_speed_m_s: 0.1          # raise step by step up to 0.31
+    angular_speed_rad_s: 0.8
+    control_period_s: 0.14496      # same as rat_walker (0.02 k)
+    robot_radius_m: 0.1705
+    collision_margin_m: 0.05
+    latency_s: 0.1                 # command-to-motion delay used for the lookahead
+    braking_decel_m_s2: 1.0        # assumed; recalibrate from the logged braking distance
+    turn_tolerance_deg: 3.0
+    stopped_speed_m_s: 0.01
+    sensor_timeout_s: 0.5
+    start_delay_s: 3.0
+    max_turns: 4                   # 0 = run until Ctrl+C
+    breakpoint_base_m: 0.03
+    breakpoint_scale: 2.25
+    rdp_epsilon_m: 0.04
+    log_dir: ~/collision_test_logs
+    use_depth: false               # true = also stop for /depth_obstacles (use collision_test_cli)
+    depth_topic: /depth_obstacles
+    depth_timeout_s: 0.6           # depth older than this = stale (forward motion holds still)
+    depth_lost_turn_s: 2.0         # stale this long while driving -> stop and turn (trigger depth_lost)
+    depth_memory_s: 8.0            # remember depth obstacles in the odom frame this long
+    depth_memory_cell_m: 0.03
+    depth_memory_range_m: 3.0
+    use_bumper: false              # true = on a Create 3 bump: stop, back up, turn 180 deg
+    hazard_topic: /hazard_detection
+    backup_distance_m: 0.05
+    backup_speed_m_s: 0.05

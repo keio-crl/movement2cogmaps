@@ -255,3 +255,6 @@ data_box_fov80/
 data_box_o1000/
 data_box_o2000/
 data_box_o3000/
+
+# Depth Anything V2 weights
+depth_anything_v2_vits.pth

@@ -13,10 +13,11 @@ import rclpy
 from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
 from rclpy.node import Node
+from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import LaserScan
 from std_msgs.msg import String
 
-from .geometry import cluster_scan, rdp_segments
+from .geometry import points_to_segments
 from .rat_motion import BEHAVIOURS, RatMotion, scaled_params
 
 IDLE, RUN, TURN = "IDLE", "RUN", "TURN"
@@ -29,20 +30,14 @@ def wrap_angle(angle: float) -> float:
 
 
 def scan_to_segments(scan: LaserScan, base_m: float, scale: float, epsilon_m: float) -> np.ndarray:
-    """Convert a scan to obstacle line segments in the scan frame.
-
-    Every cluster is kept: clusters of a single point become zero-length segments so that thin
-    obstacles such as chair legs are still repelled from and collided with.
-    """
+    """Convert a scan to obstacle line segments in the scan frame."""
     points, ranges = [], []
     for index, distance in enumerate(scan.ranges):
         if isfinite(distance) and scan.range_min <= distance <= scan.range_max:
             angle = scan.angle_min + index * scan.angle_increment
             points.append((distance * cos(angle), distance * sin(angle)))
             ranges.append(distance)
-    segments = []
-    for cluster in cluster_scan(points, ranges, scan.angle_increment, base_m, scale, 1):
-        segments.extend(rdp_segments(cluster, epsilon_m) if len(cluster) > 1 else [(cluster[0], cluster[0])])
+    segments = points_to_segments(points, ranges, scan.angle_increment, base_m, scale, epsilon_m)
     return np.array(segments, dtype=float).reshape(-1, 2, 2)
 
 
@@ -105,8 +100,8 @@ class RatWalker(Node):
 
         self.cmd_pub = self.create_publisher(Twist, value("cmd_vel_topic"), 10)
         self.status_pub = self.create_publisher(String, value("status_topic"), 10)
-        self.create_subscription(LaserScan, value("scan_topic"), self._scan_callback, 10)
-        self.create_subscription(Odometry, value("odom_topic"), self._odom_callback, 10)
+        self.create_subscription(LaserScan, value("scan_topic"), self._scan_callback, qos_profile_sensor_data)
+        self.create_subscription(Odometry, value("odom_topic"), self._odom_callback, qos_profile_sensor_data)
         self.create_subscription(String, value("behaviour_topic"), self._behaviour_callback, 10)
         self.create_timer(self.dt, self._tick)
         self.get_logger().info(f"dt={self.dt:.5f}s save={self.save_every * self.dt:.4f}s duration={self.duration}s; waiting for a behaviour.")

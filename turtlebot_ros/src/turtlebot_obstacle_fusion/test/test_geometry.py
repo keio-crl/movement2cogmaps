@@ -12,3 +12,10 @@ def test_cluster_scan_splits_a_large_gap() -> None:
 
 def test_rdp_keeps_a_corner() -> None:
     assert rdp_segments([(0.0, 0.0), (1.0, 1.0), (2.0, 0.0)], 0.1) == [((0.0, 0.0), (1.0, 1.0)), ((1.0, 1.0), (2.0, 0.0))]
+
+
+def test_points_to_segments_keeps_isolated_points() -> None:
+    from turtlebot_obstacle_fusion.geometry import points_to_segments
+    points = [(1.0, -0.1), (1.0, 0.0), (1.0, 0.1), (3.0, 2.0)]
+    segments = points_to_segments(points, [1.0, 1.0, 1.0, 3.6], 0.1, 0.03, 2.25, 0.04)
+    assert segments == [((1.0, -0.1), (1.0, 0.1)), ((3.0, 2.0), (3.0, 2.0))]

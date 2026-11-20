@@ -51,3 +51,15 @@ def rdp_segments(points: Sequence[Point], epsilon_m: float) -> list[Segment]:
     if max_distance <= epsilon_m:
         return [(start, end)]
     return rdp_segments(points[: max_index + 1], epsilon_m) + rdp_segments(points[max_index:], epsilon_m)
+
+
+def points_to_segments(points: Sequence[Point], ranges: Sequence[float], angle_increment_rad: float, base_m: float, scale: float, epsilon_m: float) -> list[Segment]:
+    """Cluster angularly ordered scan points and approximate every cluster with RDP segments.
+
+    Every cluster is kept: a single-point cluster becomes a zero-length segment so that thin
+    obstacles such as chair legs are not dropped.
+    """
+    segments: list[Segment] = []
+    for cluster in cluster_scan(points, ranges, angle_increment_rad, base_m, scale, 1):
+        segments.extend(rdp_segments(cluster, epsilon_m) if len(cluster) > 1 else [(cluster[0], cluster[0])])
+    return segments
