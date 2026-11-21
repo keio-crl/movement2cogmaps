@@ -258,3 +258,8 @@ data_box_o3000/
 
 # Depth Anything V2 weights
 depth_anything_v2_vits.pth
+
+# Robot experiment logs
+rat_walker_logs/
+depth_obstacle_logs/
+collision_test_logs/

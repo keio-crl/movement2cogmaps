@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import threading
+from typing import Optional
 
 import rclpy
 from rclpy.executors import SingleThreadedExecutor
@@ -34,6 +35,21 @@ class BehaviourCli(Node):
         self.publisher.publish(String(data=command))
 
 
+def ask_repel_distance() -> Optional[float]:
+    """Ask for the wall repulsion distance; None keeps the scaled value (0.1 x length_scale)."""
+    while True:
+        answer = input("  壁の反発距離 m（Enter = 既定の 0.1×s ≈ 0.816 m、例 0.2）: ").strip()
+        if not answer:
+            return None
+        try:
+            value = float(answer)
+        except ValueError:
+            value = -1.0
+        if 0.05 <= value <= 2.0:
+            return value
+        print("  0.05〜2.0 の数値を入力してください。")
+
+
 def main() -> None:
     rclpy.init()
     node = BehaviourCli()
@@ -49,7 +65,11 @@ def main() -> None:
                 break
             if command == "status":
                 print(node.status)
-            elif command in BEHAVIOURS or command == "stop":
+            elif command in BEHAVIOURS:
+                repel = ask_repel_distance()
+                node.send(command if repel is None else f"{command} {repel}")
+                print(f"Sent {command} (wall repulsion distance {'scaled 0.1 x length_scale' if repel is None else f'{repel} m'}).")
+            elif command == "stop":
                 node.send(command)
                 print(f"Sent {command}.")
             elif command:

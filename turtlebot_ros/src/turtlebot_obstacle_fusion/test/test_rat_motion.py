@@ -106,3 +106,42 @@ def test_module_colliding_wall_lets_robot_leave_a_touching_wall() -> None:
     assert colliding_wall(wall, np.array([0.02, 0.0]), 0.22) is not None
     assert colliding_wall(wall, np.array([-0.02, 0.0]), 0.22) is None
     assert colliding_wall(wall, np.array([0.0, 0.02]), 0.22) is None
+
+
+def _run(walls, merge, steps=40):
+    from turtlebot_obstacle_fusion.rat_motion import RatMotion, scaled_params
+
+    model = RatMotion(scaled_params("crawl", 8.161, 7.248), 0.1705, 0.0, np.random.default_rng(0), 0.05, merge)
+    return [model.step(walls, 0.14496).net_velocity for _ in range(steps)]
+
+
+def test_fragmented_wall_repels_like_a_single_wall_when_merged() -> None:
+    single = np.array([[[0.30, -1.5], [0.30, 1.5]]])
+    ys = np.linspace(-1.5, 1.5, 31)
+    pieces = np.array([[[0.30, ys[i]], [0.30, ys[i + 1]]] for i in range(30)])
+    assert np.allclose(_run(single, True), _run(pieces, True))
+    assert np.linalg.norm(_run(pieces, False)[-1]) > 3.0 * np.linalg.norm(_run(single, False)[-1])
+
+
+def test_box_corner_is_unchanged_by_merging() -> None:
+    box = np.array([[[0.5, -2.0], [0.5, 2.0]], [[-2.0, 0.4], [2.0, 0.4]], [[-1.5, -2.0], [-1.5, 2.0]], [[-2.0, -1.8], [2.0, -1.8]]])
+    assert np.allclose(_run(box, True), _run(box, False))
+
+
+def test_convex_vertex_of_a_chain_counts_once() -> None:
+    vertex = np.array([[[0.3, -0.5], [0.25, 0.0]], [[0.25, 0.0], [0.3, 0.5]]])
+    single_point = np.array([[[0.25, 0.0], [0.25, 0.0]]])
+    assert np.allclose(_run(vertex, True), _run(single_point, True))
+
+
+def test_bounce_from_point_always_leads_away_from_the_contact() -> None:
+    from turtlebot_obstacle_fusion.rat_motion import RatMotion, scaled_params
+
+    params = scaled_params("walk", 8.161, 7.248)
+    for velocity, point in [((0.1, 0.02), (0.17, 0.0)), ((0.1, 0.1), (0.12, 0.12)), ((-0.1, 0.0), (0.17, 0.0))]:
+        model = RatMotion(params, 0.1705, 0.0, np.random.default_rng(0))
+        model.velocity = np.array(velocity)
+        model.bounce_from_point(np.array(point))
+        assert np.dot(model.velocity, point) <= 0.0
+        assert abs(np.linalg.norm(model.velocity) - 0.5 * params.speed_mean) < 1e-9
+

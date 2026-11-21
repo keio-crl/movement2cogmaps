@@ -1,0 +1,14 @@
+scan_depth_fusion:
+  ros__parameters:
+    scan_topic: /scan
+    depth_topic: /depth_obstacles
+    odom_topic: /odom
+    output_topic: /fused_scan      # read by rat_walker
+    base_frame: base_link
+    angle_bin_degrees: 1.0
+    depth_timeout_s: 0.6           # warn when depth is older (LiDAR + remembered depth are still used)
+    depth_memory_s: 8.0            # remember depth obstacles in the odom frame this long
+    depth_memory_cell_m: 0.03
+    depth_memory_range_m: 3.0
+    depth_max_turn_rate: 0.3       # discard depth while turning faster than this [rad/s] (motion blur)
+    depth_motion_window_s: 0.6     # ... or within this time after such a turn

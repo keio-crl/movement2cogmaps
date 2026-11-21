@@ -19,7 +19,7 @@ collision_test:
     breakpoint_base_m: 0.03
     breakpoint_scale: 2.25
     rdp_epsilon_m: 0.04
-    log_dir: ~/collision_test_logs
+    log_dir: /home/murata-lab/tomita-turtlebot/movement2cogmaps/collision_test_logs
     use_depth: false               # true = also stop for /depth_obstacles (use collision_test_cli)
     depth_topic: /depth_obstacles
     depth_timeout_s: 0.6           # depth older than this = stale (forward motion holds still)

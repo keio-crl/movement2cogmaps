@@ -42,7 +42,7 @@ known-distance obstacles. Tune the YAML parameters after recording a rosbag from
 velocity and on the Rayleigh-distributed speed, plus wall repulsion with thigmotaxis), scaled to
 the robot with `length_scale` (s = 8.161) and `time_scale` (k = 7.248). Obstacles are the RDP line
 segments of `/fused_scan` (per-angle minimum of LiDAR and depth). The model update runs every
-0.02 k s, a CSV row is logged every 0.1 k s, and a session ends after 5129 s of recorded time.
+0.02 k s, a CSV row is logged every 0.1 k s, and a session ends after 5218.6 s of recorded time (7200 rows, matching the 720 s x 10 fps simulations).
 
 When the next step would bring the robot body (radius + `collision_margin_m`) into an obstacle,
 the robot stops, pauses recording, turns in place to the mirrored heading, then resumes at
@@ -56,7 +56,7 @@ behaviour> status     # state, behaviour and recorded time
 behaviour> stop       # stop the robot and close the log
 ```
 
-Logs are written to `~/rat_walker_logs/<behaviour>_<date>.csv` with columns
+Logs are written to `movement2cogmaps/rat_walker_logs/<behaviour>_<date>.csv` with columns
 `t, behaviour, x, y, yaw, cmd_linear, cmd_angular, v_net_x, v_net_y, rot_velocity, closest_wall`
 (`x, y, yaw` from `/odom`). The robot holds still whenever `/fused_scan` or `/odom` is older than
 `sensor_timeout_s`. Parameters are in `config/rat_walker.yaml`; check the actual publishers with
@@ -76,7 +76,7 @@ ros2 run turtlebot_obstacle_fusion collision_test --ros-args \
 
 It stops after `max_turns` turns (0 = until Ctrl+C). Each detection logs the clearance at
 detection, the braking distance from odometry and the clearance after stopping; the full trace is
-in `~/collision_test_logs/*.csv`. Start at 0.1 m/s and raise the speed only after the logged
+in `movement2cogmaps/collision_test_logs/*.csv`. Start at 0.1 m/s and raise the speed only after the logged
 clearance stays positive, recalibrating `braking_decel_m_s2` from the measured braking distance.
 
 ## Optional: LiDAR + Depth Anything V2 (camera depth)
@@ -95,7 +95,7 @@ Run it on the development PC (needs the GPU) through the interactive launcher:
 ```bash
 source /opt/ros/galactic/setup.bash && source install/setup.bash
 ros2 run turtlebot_obstacle_fusion collision_test_cli            # add --dry-run to publish to /cmd_vel_dryrun
-# 1) LiDAR only   2) LiDAR + depth, then speed and number of turns
+# 1) LiDAR only   2) LiDAR + Depth Anything   3) LiDAR + OAK-D stereo, then speed and number of turns
 ```
 
 The depth node runs with `$DEPTH_PYTHON` (default `~/tomita-turtlebot/.venv/bin/python`, which has
@@ -112,7 +112,7 @@ torch and `depth_anything_v2`). The launcher asks for the camera:
 The camera model is correct when the projected LiDAR dots in the saved images lie on the obstacles
 at LiDAR height.
 
-Diagnostics go to `~/depth_obstacle_logs/<date>/` every `save_period_s`:
+Diagnostics go to `movement2cogmaps/depth_obstacle_logs/<date>/` every `save_period_s`:
 
 - `frame_XXXXX.png`: (1) camera image with depth obstacle pixels in red and projected LiDAR points
   coloured by distance, (2) metric depth (red = near, blue >= `depth_max_m`), (3) top view of LiDAR
@@ -128,6 +128,31 @@ parts (a chair base) that the LiDAR passes over.
   distance from depth and from LiDAR, inference time. Times match the `collision_test` CSV, whose
   `trigger` column says whether `lidar`, `depth` or `both` caused each stop.
 
+## Optional: LiDAR + OAK-D stereo depth
+
+Option 3 of `collision_test_cli` starts `stereo_obstacle` (system Python, no torch) with
+`config/stereo_obstacle.yaml`. It reads `/stereo/depth/compressedDepth` (16UC1 mm as PNG, about
+10 KB per frame, about 6.6 Hz over Wi-Fi) and `/stereo/camera_info`, takes the pose of
+`oakd_pro_right_camera_optical_frame` from TF, and publishes the same `/depth_obstacles` scan as the
+Depth Anything node, so `collision_test` is unchanged.
+
+With the Pi defaults (`dotProjectormA: 0`, IR dot projector off) under 1 % of the pixels have depth,
+mostly on edges; plain walls and floors are not measured, and objects closer than about 0.35 m to
+the camera (the 720p stereo minimum) give no depth or wrong depth.
+
+The TF of the camera is level, but the floor seen by the stereo camera is tilted about 6.5 deg
+(camera looking down); `camera_pitch_down_deg` / `camera_roll_deg` correct it. Without the
+correction the floor beyond about 0.6 m rises above `obstacle_min_height_m` and becomes an obstacle.
+Dense depth (a textured view) arrives only about every 2 s with the Pi defaults, so the launcher
+runs `collision_test` with `depth_timeout_s:=2.5` and `depth_lost_turn_s:=5.0` for this option.
+
+Diagnostics go to `movement2cogmaps/depth_obstacle_logs/stereo_<date>/` every `save_period_s`:
+`stereo_XXXXX.png` (half-size depth map, red = near, black = no depth, white = obstacle pixels),
+`stereo_XXXXX.npz` (`depth_mm`, obstacle points and pixels, intrinsics, camera pose) and
+`frames.csv` (valid pixel ratio, number and median height of floor points, which should be near
+0 m when the camera model is right, the floor tilt left after the correction (a rough per-frame
+fit, +-2 deg), number of obstacle points, nearest obstacle).
+
 ## Optional: bumper reaction
 
 With `use_bumper:=true` (asked by `collision_test_cli`), `collision_test` also listens to the
@@ -136,3 +161,78 @@ Create 3 `/hazard_detection` and, on a `BUMP` while driving or braking, stops, b
 then turns 180 deg. It catches low obstacles that neither the LiDAR plane nor the camera sees (chair
 bases), but not overhangs above the bumper. The robot holds still if `/hazard_detection` is stale.
 The CSV `trigger` column is `bump` for these events.
+
+## rat_walker with LiDAR + Depth Anything V2
+
+`rat_walker_depth.launch.py` runs, on the development PC, `depth_obstacle` (OAK-D colour preview,
+see above), `scan_depth_fusion` and `rat_walker`. `scan_depth_fusion` publishes `/fused_scan`: for
+every 1-degree bin the nearer of the LiDAR (`/scan`, transformed to `base_link`) and the depth
+obstacles, which are remembered in the odometry frame for `depth_memory_s` so low obstacles stay
+known after they leave the camera view. `rat_walker` turns `/fused_scan` into RDP segments and applies
+the RatInABox wall repulsion and the stop / mirror-turn / resume-at-half-speed bounce to them.
+
+```bash
+# Pi: LiDAR (turtlebot4 service) and `ros2 launch turtlebot4_bringup oakd.launch.py`
+ros2 launch turtlebot_obstacle_fusion rat_walker_depth.launch.py
+ros2 run turtlebot_obstacle_fusion rat_behaviour_cli     # another terminal: crawl | walk | run | adult | stop
+```
+
+Two deviations from RatInABox are needed on the robot (both in `config/rat_walker.yaml`):
+
+- `merge_wall_chains`: perceived surfaces arrive as chains of short segments; summing the repulsion
+  of every piece multiplied it (a wall in 30 pieces pushed about 7 times harder) and saturated the
+  commands. A chain now contributes once per local distance minimum; separate walls (a box corner)
+  still add up as in RatInABox.
+- `heading_gain`: the heading command is `rotational_velocity + heading_gain * heading_error`
+  instead of `heading_error / dt`, which overshot with the command latency and oscillated at the
+  angular limit.
+
+`rat_behaviour_cli` asks for the wall repulsion distance after a behaviour (Enter keeps the scaled
+`0.1 x length_scale` = 0.816 m). A smaller value lets the robot move between closely spaced
+obstacles but departs from the scaled RatInABox model; it is sent as `"<behaviour> <metres>"` and
+recorded in the log file name (`<behaviour>_repel<metres>_<date>.csv`).
+
+With `use_bumper: true` (default in `config/rat_walker.yaml`), a Create 3 `BUMP` while running stops
+the robot and the recording, backs up `backup_distance_m`, bounces the model velocity off the contact
+point (bumper zone direction at the robot radius; the new heading always leads away from it), turns
+to that heading and resumes at 0.5 x speed_mean, as for a predicted collision. The robot holds still
+while `/hazard_detection` is stale.
+
+### Recording camera images and depth with rat_walker
+
+`record_images:=true` (both `rat_walker.launch.py` and `rat_walker_depth.launch.py`) starts
+`rat_recorder` with `$DEPTH_PYTHON`. Every time rat_walker writes a CSV row it publishes
+`"<session>,<row>,<t>"` on `/rat_walker/sample`; the recorder saves the newest OAK-D colour preview
+and its Depth Anything V2 depth. rat_walker holds still and stops the recorded time while
+`/rat_recorder/status` is not `ready` (model loading, or no image newer than `max_image_age_s`), so
+every CSV row has its image.
+
+```bash
+ros2 launch turtlebot_obstacle_fusion rat_walker_depth.launch.py record_images:=true
+```
+
+Files go to `<log_dir>/<session>/`, where `<session>` is the CSV file name without `.csv`, and
+`XXXXX` is the `row` column of the CSV:
+
+- `rgb_XXXXX.png`: the camera image at its original resolution.
+- `depth_XXXXX.npz`: `relative` (Depth Anything V2 output, relative inverse depth, float32),
+  `depth_m` (metres, empty when the scale fit failed), `fit` (`a, b, residual, inliers, pairs` of
+  `1/z = a r + b`), `scale_source`, `intrinsics`, `distortion`, camera `rotation`/`translation` in
+  `base_link`, `row`, `t`, `image_stamp`, `image_age_s`.
+- `frames.csv`: one line per row with the image age, fit result and inference time.
+
+The image topic, camera frame and scale settings are in `config/rat_recorder.yaml` (defaults
+match `depth_obstacle_oakd.yaml`); its `log_dir` must equal rat_walker's `log_dir`.
+
+### Visualising the obstacles in RViz
+
+`ros2 launch turtlebot_obstacle_fusion rat_walker_depth.launch.py rviz:=true` (or, separately,
+`rviz2 -d install/turtlebot_obstacle_fusion/share/turtlebot_obstacle_fusion/config/obstacles.rviz`)
+shows, in `base_link` from above: LiDAR `/scan` (grey), `/fused_scan` (blue), remembered depth
+obstacles (orange, fading with age), the latest depth obstacles (red), the walls rat_walker uses
+(green), the repulsion range (yellow circle), the model heading (magenta arrow) and a status text.
+
+The same RViz configuration also shows `collision_test` (`/collision_test/markers`): the depth memory
+(orange) and latest depth (red), the collision body (green circle), the body at the lookahead that
+decides the stop (red circle) and the state / trigger text. Open it in another terminal with the
+`rviz2 -d ...` command above while `collision_test_cli` runs.

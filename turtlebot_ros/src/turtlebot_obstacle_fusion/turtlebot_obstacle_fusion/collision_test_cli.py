@@ -1,8 +1,8 @@
-"""Interactive launcher for the collision test: choose LiDAR only or LiDAR + Depth Anything V2.
+"""Interactive launcher for the collision test: LiDAR only, + Depth Anything V2, or + OAK-D stereo depth.
 
 Usage: ``ros2 run turtlebot_obstacle_fusion collision_test_cli [--dry-run]``.
 ``--dry-run`` sends velocity commands to ``/cmd_vel_dryrun`` so the robot does not move.
-The depth node runs with the Python in ``$DEPTH_PYTHON`` (default ``~/tomita-turtlebot/.venv/bin/python``).
+The Depth Anything node runs with the Python in ``$DEPTH_PYTHON`` (default ``~/tomita-turtlebot/.venv/bin/python``).
 """
 
 from __future__ import annotations
@@ -21,6 +21,10 @@ PACKAGE = "turtlebot_obstacle_fusion"
 DEFAULT_DEPTH_PYTHON = str(Path.home() / "tomita-turtlebot" / ".venv" / "bin" / "python")
 DEPTH_READY_TIMEOUT_S = 90.0
 CAMERA_CONFIGS = {"1": "depth_obstacle_oakd.yaml", "2": "depth_obstacle_wide.yaml"}
+# Dense OAK-D stereo depth reaches the PC only about every 2 s with the Pi defaults (PNG encoding
+# of 1280x720 on the Pi), so collision_test accepts older depth and leans on its odom-frame memory.
+STEREO_DEPTH_TIMEOUT_S = 2.5
+STEREO_DEPTH_LOST_TURN_S = 5.0
 
 
 def ask(prompt: str, default: str, valid=None) -> str:
@@ -78,10 +82,11 @@ def main() -> None:
     dry_run = "--dry-run" in sys.argv[1:]
     config = Path(get_package_share_directory(PACKAGE)) / "config"
     print("=== LiDAR 衝突回避テスト ===" + ("（ドライラン: /cmd_vel_dryrun に出力、ロボットは動きません）" if dry_run else ""))
-    print("障害物センサ:\n  1) LiDAR のみ\n  2) LiDAR + 深度 (Depth Anything V2)")
-    use_depth = ask("番号", "1", lambda a: a in ("1", "2")) == "2"
+    print("障害物センサ:\n  1) LiDAR のみ\n  2) LiDAR + 深度 (Depth Anything V2)\n  3) LiDAR + OAK-D ステレオ深度")
+    sensor = ask("番号", "1", lambda a: a in ("1", "2", "3"))
+    use_depth, use_stereo = sensor in ("2", "3"), sensor == "3"
     depth_config = None
-    if use_depth:
+    if sensor == "2":
         print("深度推定に使うカメラ:\n  1) OAK-D カラー画像（camera_info と TF を使用）\n  2) 広角 USB カメラ（depth_obstacle_wide.yaml の画角・取付位置を使用）")
         depth_config = CAMERA_CONFIGS[ask("番号", "1", lambda a: a in CAMERA_CONFIGS)]
     print("バンパー（Create 3）に当たったとき:\n  1) 止まって少し下がり、180°回る\n  2) 何もしない")
@@ -96,13 +101,22 @@ def main() -> None:
         "-p", f"use_depth:={'true' if use_depth else 'false'}",
         "-p", f"use_bumper:={'true' if use_bumper else 'false'}",
     ]
+    if use_stereo:
+        test_command += ["-p", f"depth_timeout_s:={STEREO_DEPTH_TIMEOUT_S}", "-p", f"depth_lost_turn_s:={STEREO_DEPTH_LOST_TURN_S}"]
     if dry_run:
         test_command += ["-p", "cmd_vel_topic:=/cmd_vel_dryrun"]
 
     depth_process: Optional[subprocess.Popen] = None
     test_process: Optional[subprocess.Popen] = None
     try:
-        if use_depth:
+        if use_stereo:
+            depth_process = subprocess.Popen(["ros2", "run", PACKAGE, "stereo_obstacle", "--ros-args", "--params-file", str(config / "stereo_obstacle.yaml")])
+            print("ステレオ深度ノードを起動しました。")
+            if not wait_for_depth(depth_process, "/depth_obstacles"):
+                print("ステレオ深度ノードが起動しませんでした。上のログを確認してください。")
+                return
+            print("深度の準備ができました。テストを開始します。")
+        elif use_depth:
             python = os.environ.get("DEPTH_PYTHON", DEFAULT_DEPTH_PYTHON)
             if not Path(python).exists():
                 print(f"深度ノード用の Python が見つかりません: {python}（環境変数 DEPTH_PYTHON で指定できます）")

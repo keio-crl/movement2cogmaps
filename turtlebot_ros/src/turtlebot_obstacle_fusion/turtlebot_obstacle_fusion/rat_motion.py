@@ -138,10 +138,17 @@ class RatMotion:
 
     ``collision_margin`` only enlarges the body used for collision detection, to absorb sensor
     latency and braking distance; wall repulsion still uses the bare radius as in simulation.
+
+    RatInABox sums the repulsion of every wall, which assumes a few distinct walls. A perceived
+    surface arrives as a chain of short segments sharing end points, so with ``merge_chains`` a
+    segment whose nearest point is an end point shared with a nearer (or equally near, earlier)
+    segment is skipped: each chain then contributes once per local distance minimum. Separate
+    walls, such as the two walls at a box corner, still contribute separately as in RatInABox.
     """
 
-    def __init__(self, params: MotionParams, robot_radius: float, heading: float, rng: np.random.Generator, collision_margin: float = 0.0) -> None:
+    def __init__(self, params: MotionParams, robot_radius: float, heading: float, rng: np.random.Generator, collision_margin: float = 0.0, merge_chains: bool = False) -> None:
         self.params = params
+        self.merge_chains = merge_chains
         self.robot_radius = robot_radius
         self.collision_margin = collision_margin
         self.rng = rng
@@ -171,7 +178,8 @@ class RatMotion:
         wall_speed = np.zeros(2)
         closest = float("inf")
         if len(wall_array) > 0:
-            vectors = origin - closest_points(origin, wall_array)
+            closest_on_walls = closest_points(origin, wall_array)
+            vectors = origin - closest_on_walls
             centre_distances = np.linalg.norm(vectors, axis=1)
             valid = centre_distances > 0.0
             vectors, centre_distances = vectors[valid], centre_distances[valid]
@@ -182,7 +190,7 @@ class RatMotion:
                 d = p.wall_repel_distance
                 v = p.wall_repel_strength * p.speed_mean
                 if p.wall_repel_strength > 0.0:
-                    near = x <= d
+                    near = (x <= d) & self._chain_minima(wall_array[valid], closest_on_walls[valid], centre_distances)
                     accelerations = np.where(near, v ** 2 / d ** 2 * (d - x), 0.0)
                     self.velocity = self.velocity + 3.0 * (1.0 - p.thigmotaxis) ** 2 * (accelerations[:, None] * normals).sum(axis=0) * dt
                     speeds = np.where(near, v * (1.0 - np.sqrt(np.clip(1.0 - (d - x) ** 2 / d ** 2, 0.0, None))), 0.0)
@@ -191,9 +199,34 @@ class RatMotion:
         net_velocity = self.velocity + 6.0 * p.thigmotaxis ** 2 * wall_speed
         return StepResult(net_velocity, self.colliding_wall(wall_array, net_velocity * dt), closest)
 
+    def _chain_minima(self, walls: np.ndarray, closest: np.ndarray, distances: np.ndarray) -> np.ndarray:
+        """True for walls that are a local distance minimum of their chain (all True without merging)."""
+        keep = np.ones(len(walls), dtype=bool)
+        if not self.merge_chains:
+            return keep
+        tolerance = 1e-6
+        ends = walls.reshape(-1, 2)
+        owner = np.repeat(np.arange(len(walls)), 2)
+        for index, point in enumerate(closest):
+            if not (np.allclose(point, walls[index, 0], atol=tolerance) or np.allclose(point, walls[index, 1], atol=tolerance)):
+                continue
+            sharing = owner[np.all(np.abs(ends - point) <= tolerance, axis=1)]
+            for other in sharing[sharing != index]:
+                if distances[other] < distances[index] - tolerance or (abs(distances[other] - distances[index]) <= tolerance and other < index):
+                    keep[index] = False
+                    break
+        return keep
+
     def colliding_wall(self, walls: Sequence[Segment] | np.ndarray, displacement: np.ndarray) -> Optional[np.ndarray]:
         """Return the wall the robot body would penetrate further by moving ``displacement``."""
         return colliding_wall(walls, displacement, self.robot_radius + self.collision_margin)
+
+    def bounce_from_point(self, point: np.ndarray) -> None:
+        """Bounce off a contact ``point`` (relative to the robot centre) so the new heading leads away from it."""
+        point = np.asarray(point, dtype=float)
+        self.bounce(np.array([point, point]))
+        if np.dot(self.velocity, point) > 0.0:
+            self.velocity = -self.velocity
 
     def bounce(self, wall: np.ndarray) -> None:
         """Mirror the velocity off ``wall`` and slow down to half the mean speed, as RatInABox.

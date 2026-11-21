@@ -10,14 +10,24 @@ rat_walker:
     robot_radius_m: 0.1705
     control_period_k: 0.02       # RatInABox update interval = 0.02 k s
     save_period_k: 0.1           # saving interval = 0.1 k s
-    record_duration_s: 5129.0    # recorded time, excluding stops and in-place turns
+    record_duration_s: 5218.6    # recorded time, excluding stops and in-place turns (7200 rows = 720 s x 10 fps in rat time)
     max_linear_m_s: 0.31
-    max_angular_rad_s: 1.9
+    max_angular_rad_s: 1.0         # robot limit 1.9; lower to limit camera motion blur (model |w| 95% < 0.71)
     turn_tolerance_deg: 3.0
+    heading_gain: 2.0            # angular = model rotational velocity + gain * heading error [1/s]
     collision_margin_m: 0.05     # extra body margin for collision detection only
+    merge_wall_chains: true      # repulsion: a chain of touching segments counts once per local minimum (false = sum all, as RatInABox)
     sensor_timeout_s: 0.5
+    use_bumper: true             # on a Create 3 bump: stop recording, back up, turn away (mirror), resume
+    hazard_topic: /hazard_detection
+    backup_distance_m: 0.05
+    backup_speed_m_s: 0.05
     breakpoint_base_m: 0.03
     breakpoint_scale: 2.25
     rdp_epsilon_m: 0.04
-    log_dir: ~/rat_walker_logs
+    log_dir: /home/murata-lab/tomita-turtlebot/movement2cogmaps/rat_walker_logs
     seed: -1                     # negative = random
+    record_images: false         # true: hold still until rat_recorder is ready and publish a sample per CSV row (set by the launch argument)
+    sample_topic: /rat_walker/sample
+    recorder_status_topic: /rat_recorder/status
+    recorder_timeout_s: 0.5

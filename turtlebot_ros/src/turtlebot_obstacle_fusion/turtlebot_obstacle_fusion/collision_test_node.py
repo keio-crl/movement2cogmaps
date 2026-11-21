@@ -18,14 +18,16 @@ from typing import Optional
 
 import numpy as np
 import rclpy
-from geometry_msgs.msg import Twist
+from geometry_msgs.msg import Point, Twist
 from nav_msgs.msg import Odometry
 from rclpy.duration import Duration
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
 from rclpy.time import Time
 from sensor_msgs.msg import LaserScan
+from std_msgs.msg import ColorRGBA
 from tf2_ros import Buffer, TransformException, TransformListener
+from visualization_msgs.msg import Marker, MarkerArray
 
 from .depth_estimation import ObstacleMemory, base_to_odom, odom_to_base, ranges_to_points
 from .geometry import points_to_segments
@@ -50,6 +52,7 @@ class CollisionTest(Node):
         self.declare_parameter("odom_topic", "/odom")
         self.declare_parameter("cmd_vel_topic", "/cmd_vel")
         self.declare_parameter("base_frame", "base_link")
+        self.declare_parameter("marker_topic", "/collision_test/markers")
         self.declare_parameter("linear_speed_m_s", 0.1)
         self.declare_parameter("angular_speed_rad_s", 0.8)
         self.declare_parameter("max_linear_m_s", 0.31)
@@ -137,6 +140,9 @@ class CollisionTest(Node):
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
         self.cmd_pub = self.create_publisher(Twist, value("cmd_vel_topic"), 10)
+        self.marker_pub = self.create_publisher(MarkerArray, value("marker_topic"), 10)
+        self.latest_depth_odom = np.zeros((0, 2))
+        self.memory_ages = np.zeros(0)
         self.create_subscription(LaserScan, value("scan_topic"), self._scan_callback, qos_profile_sensor_data)
         self.create_subscription(Odometry, value("odom_topic"), self._odom_callback, qos_profile_sensor_data)
         if self.use_depth:
@@ -184,7 +190,8 @@ class CollisionTest(Node):
             return
         points = ranges_to_points(np.array(scan.ranges, dtype=float), scan.angle_min, scan.angle_increment)
         self.depth_time = self.get_clock().now()
-        self.memory.add(base_to_odom(points, self.pose), self.depth_time.nanoseconds * 1e-9)
+        self.latest_depth_odom = base_to_odom(points, self.pose)
+        self.memory.add(self.latest_depth_odom, self.depth_time.nanoseconds * 1e-9)
 
     def _depth_fresh(self) -> bool:
         return self.depth_time is not None and (self.get_clock().now() - self.depth_time).nanoseconds <= self.depth_timeout * 1e9
@@ -252,9 +259,10 @@ class CollisionTest(Node):
             self._publish(0.0, 0.0)
             return
         if self.use_depth:
-            remembered = self.memory.points(self.get_clock().now().nanoseconds * 1e-9, self.pose[:2])
+            remembered, self.memory_ages = self.memory.entries(self.get_clock().now().nanoseconds * 1e-9, self.pose[:2])
             self.depth_points = odom_to_base(remembered, self.pose)
         clearance = self._clearance()
+        self._publish_markers()
         self.min_clearance = min(self.min_clearance, clearance)
         if self.bump is not None and self.state in (FORWARD, BRAKE):
             self._start_backup()
@@ -270,6 +278,53 @@ class CollisionTest(Node):
             self._backup()
         elif self.state == TURN:
             self._turn()
+
+    def _publish_markers(self) -> None:
+        """RViz markers in the base frame: depth memory (orange, fading), latest depth (red), robot body,
+        collision body (green circle), the body at the lookahead used for the stop decision (red circle), status."""
+        stamp = self.get_clock().now().to_msg()
+
+        def marker(namespace: str, kind: int) -> Marker:
+            item = Marker()
+            item.header.stamp, item.header.frame_id = stamp, self.base_frame
+            item.ns, item.id, item.type, item.action = namespace, 0, kind, Marker.ADD
+            item.pose.orientation.w = 1.0
+            return item
+
+        def circle(namespace: str, centre_x: float, radius: float, colour: ColorRGBA) -> Marker:
+            item = marker(namespace, Marker.LINE_STRIP)
+            item.scale.x = 0.01
+            item.color = colour
+            item.points = [Point(x=centre_x + radius * cos(a), y=radius * sin(a), z=0.04) for a in np.linspace(0.0, 2.0 * pi, 73)]
+            return item
+
+        markers = [
+            circle("collision_body", 0.0, self.body_radius, ColorRGBA(r=0.1, g=1.0, b=0.2, a=0.8)),
+            circle("lookahead_body", self.lookahead, self.body_radius, ColorRGBA(r=1.0, g=0.2, b=0.2, a=0.8)),
+        ]
+        body = marker("robot", Marker.CYLINDER)
+        body.scale.x = body.scale.y = 2.0 * self.radius
+        body.scale.z = 0.01
+        body.color = ColorRGBA(r=0.3, g=0.6, b=1.0, a=0.3)
+        markers.append(body)
+        if self.use_depth and self.pose is not None:
+            memory = marker("depth_memory", Marker.POINTS)
+            memory.scale.x = memory.scale.y = 0.03
+            memory.points = [Point(x=float(x), y=float(y), z=0.02) for x, y in self.depth_points]
+            memory.colors = [ColorRGBA(r=1.0, g=0.55, b=0.0, a=float(max(0.15, 1.0 - age / self.memory.max_age_s))) for age in self.memory_ages]
+            latest = marker("depth_latest", Marker.POINTS)
+            latest.scale.x = latest.scale.y = 0.04
+            latest.color = ColorRGBA(r=1.0, g=0.0, b=0.0, a=1.0)
+            latest.points = [Point(x=float(x), y=float(y), z=0.03) for x, y in (odom_to_base(self.latest_depth_odom, self.pose) if self._depth_fresh() else [])]
+            markers += [memory, latest]
+        status = marker("status", Marker.TEXT_VIEW_FACING)
+        status.pose.position.x, status.pose.position.z = -0.45, 0.3
+        status.scale.z = 0.08
+        status.color = ColorRGBA(r=1.0, g=1.0, b=1.0, a=1.0)
+        depth_text = f" | depth {'fresh' if self._depth_fresh() else 'STALE'}, memory {len(self.depth_points)} pts" if self.use_depth else ""
+        status.text = f"{self.state} trigger={self.trigger or '-'}{depth_text}"
+        markers.append(status)
+        self.marker_pub.publish(MarkerArray(markers=markers))
 
     def _wait(self) -> None:
         now = self.get_clock().now()

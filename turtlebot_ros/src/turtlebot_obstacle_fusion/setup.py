@@ -13,7 +13,7 @@ setup(
         ("share/ament_index/resource_index/packages", ["resource/turtlebot_obstacle_fusion"]),
         (f"share/{package_name}", ["package.xml"]),
         (f"share/{package_name}/launch", glob("launch/*.launch.py")),
-        (f"share/{package_name}/config", glob("config/*.yaml")),
+        (f"share/{package_name}/config", glob("config/*.yaml") + glob("config/*.rviz")),
     ],
     install_requires=["setuptools"],
     zip_safe=True,
@@ -28,6 +28,8 @@ setup(
             "rat_behaviour_cli = turtlebot_obstacle_fusion.behaviour_cli:main",
             "collision_test = turtlebot_obstacle_fusion.collision_test_node:main",
             "collision_test_cli = turtlebot_obstacle_fusion.collision_test_cli:main",
+            "scan_depth_fusion = turtlebot_obstacle_fusion.scan_depth_fusion_node:main",
+            "stereo_obstacle = turtlebot_obstacle_fusion.stereo_obstacle_node:main",
         ]
     },
 )

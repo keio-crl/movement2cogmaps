@@ -336,9 +336,87 @@ class ObstacleMemory:
 
     def points(self, now_s: float, centre: Tuple[float, float]) -> np.ndarray:
         """Drop expired or distant cells and return the remaining points in the odometry frame."""
-        keep = {
+        return self.entries(now_s, centre)[0]
+
+    def entries(self, now_s: float, centre: Tuple[float, float]) -> Tuple[np.ndarray, np.ndarray]:
+        """Drop expired or distant cells; return the remaining points (odometry frame) and their ages [s]."""
+        self.cells = {
             key: value for key, value in self.cells.items()
             if now_s - value[2] <= self.max_age_s and np.hypot(value[0] - centre[0], value[1] - centre[1]) <= self.max_range_m
         }
-        self.cells = keep
-        return np.array([value[:2] for value in keep.values()], dtype=float).reshape(-1, 2)
+        values = np.array(list(self.cells.values()), dtype=float).reshape(-1, 3)
+        return values[:, :2], now_s - values[:, 2]
+
+
+def decode_image(data: bytes, encoding: str = "", width: int = 0, height: int = 0, step: int = 0) -> Optional[np.ndarray]:
+    """Decode a CompressedImage (``encoding`` empty) or a raw bgr8/rgb8/mono8 Image to a BGR array."""
+    import cv2
+
+    buffer = np.frombuffer(bytes(data), np.uint8)
+    if not encoding:
+        return cv2.imdecode(buffer, cv2.IMREAD_COLOR)
+    channels = {"bgr8": 3, "rgb8": 3, "mono8": 1}.get(encoding.lower())
+    if channels is None or height * (step or width * channels) > len(buffer):
+        return None
+    image = buffer[: height * (step or width * channels)].reshape(height, step or width * channels)[:, : width * channels].reshape(height, width, channels)
+    if encoding.lower() == "rgb8":
+        return cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+    if channels == 1:
+        return cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
+    return image.copy()
+
+
+def lidar_pairs(relative: np.ndarray, lidar_xy: np.ndarray, lidar_height: float, intrinsics: Intrinsics, rotation: np.ndarray, translation: np.ndarray, radius: int, distortion: Distortion = None) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Project base-frame LiDAR points into the image; return (relative values, optical depths, pixels)."""
+    if len(lidar_xy) == 0:
+        return np.zeros(0), np.zeros(0), np.zeros((0, 2), int)
+    lidar_base = np.column_stack([lidar_xy, np.full(len(lidar_xy), lidar_height)])
+    lidar_cam = (lidar_base - translation) @ rotation
+    height, width = relative.shape
+    uv, kept = project_to_image(lidar_cam, intrinsics, width, height, distortion=distortion)
+    return sample_median(relative, uv, radius), lidar_cam[kept, 2], uv
+
+
+def decode_compressed_depth(data: bytes) -> Optional[np.ndarray]:
+    """Decode a ``compressedDepth`` 16UC1 message (12-byte header + PNG) to a uint16 array in mm."""
+    import cv2
+
+    buffer = np.frombuffer(bytes(data), np.uint8)
+    if len(buffer) <= 12:
+        return None
+    image = cv2.imdecode(buffer[12:], cv2.IMREAD_UNCHANGED)
+    if image is None or image.dtype != np.uint16 or image.ndim != 2:
+        return None
+    return image
+
+
+def tilt_correction(pitch_down_deg: float, roll_deg: float) -> np.ndarray:
+    """Base-frame rotation for a camera pitched down by ``pitch_down_deg`` and rolled by ``roll_deg``
+    (positive = left side up) beyond its TF; pre-multiply the TF rotation with it."""
+    pitch, roll = np.radians(pitch_down_deg), np.radians(roll_deg)
+    about_y = np.array([[np.cos(pitch), 0.0, np.sin(pitch)], [0.0, 1.0, 0.0], [-np.sin(pitch), 0.0, np.cos(pitch)]])
+    about_x = np.array([[1.0, 0.0, 0.0], [0.0, np.cos(roll), -np.sin(roll)], [0.0, np.sin(roll), np.cos(roll)]])
+    return about_x @ about_y
+
+
+def floor_tilt(points: np.ndarray, max_height: float = 0.2, max_range: float = 2.0, min_points: int = 200, tolerance: float = 0.02) -> Tuple[float, float, float]:
+    """Fit z = a x + b y + c to low base-frame points; return (pitch_down_deg, roll_deg, c) that
+    ``tilt_correction`` needs to make the floor flat, or NaNs with too few points.
+
+    Low obstacles (wall bases, chair feet) sit above the floor, so the plane is first refitted to
+    the lower half of the points a few times, then to the points within ``tolerance`` of it.
+    """
+    low = (points[:, 2] < max_height) & (np.hypot(points[:, 0], points[:, 1]) < max_range)
+    if low.sum() < min_points:
+        return float("nan"), float("nan"), float("nan")
+    design = np.column_stack([points[low, 0], points[low, 1], np.ones(low.sum())])
+    z = points[low, 2]
+    keep = np.ones(len(z), dtype=bool)
+    for iteration in range(6):
+        if keep.sum() < min_points // 2:
+            return float("nan"), float("nan"), float("nan")
+        coefficients = np.linalg.lstsq(design[keep], z[keep], rcond=None)[0]
+        residual = z - design @ coefficients
+        keep = residual <= np.median(residual[keep]) if iteration < 3 else np.abs(residual) < tolerance
+    a, b, c = coefficients
+    return float(np.degrees(np.arctan(a))), float(np.degrees(np.arctan(-b))), float(c)

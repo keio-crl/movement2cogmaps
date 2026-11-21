@@ -1,0 +1,19 @@
+stereo_obstacle:
+  ros__parameters:
+    depth_topic: /stereo/depth/compressedDepth   # OAK-D stereo depth, 16UC1 mm (PNG, lighter than /stereo/depth over Wi-Fi)
+    camera_info_topic: /stereo/camera_info
+    output_topic: /depth_obstacles
+    base_frame: base_link
+    camera_frame: oakd_pro_right_camera_optical_frame
+    use_distortion: false          # depth is aligned to the rectified right image
+    camera_pitch_down_deg: 6.5     # the camera looks this much lower than TF says (fitted to the floor, 2026-11-21)
+    camera_roll_deg: -1.1          # left side up positive; re-fit from floor_pitch_deg / floor_roll_deg in frames.csv
+    depth_min_m: 0.1
+    depth_max_m: 2.5
+    obstacle_min_height_m: 0.05    # below = floor
+    obstacle_max_height_m: 0.40    # above = higher than the robot
+    pixel_stride: 2
+    angle_bin_degrees: 1.0
+    min_points_per_bin: 5
+    save_period_s: 1.0
+    log_dir: /home/murata-lab/tomita-turtlebot/movement2cogmaps/depth_obstacle_logs

@@ -1,0 +1,25 @@
+rat_recorder:
+  ros__parameters:
+    image_topic: /color/preview/image/compressed   # OAK-D colour preview (same as depth_obstacle_oakd.yaml)
+    image_type: compressed                         # compressed (CompressedImage) or raw (Image)
+    camera_info_topic: /color/preview/camera_info
+    camera_frame: oakd_pro_rgb_camera_optical_frame
+    scan_topic: /scan
+    base_frame: base_link
+    sample_topic: /rat_walker/sample
+    status_topic: /rat_recorder/status
+    weights_path: ~/tomita-turtlebot/depth_anything_v2_vits.pth
+    device: cuda:0
+    input_size: 518
+    max_image_age_s: 0.3           # rat_walker holds still while the newest image is older
+    scale_source: floor            # metric scale from the floor plane (floor) or projected LiDAR (lidar)
+    floor_min_m: 0.3
+    floor_max_m: 3.0
+    pixel_stride: 4
+    max_scan_age_s: 0.3
+    sample_radius_px: 2
+    fit_min_pairs: 15
+    fit_inlier_tolerance: 0.15
+    fit_max_residual: 0.1
+    fit_min_inlier_ratio: 0.0
+    log_dir: /home/murata-lab/tomita-turtlebot/movement2cogmaps/rat_walker_logs   # must match rat_walker log_dir

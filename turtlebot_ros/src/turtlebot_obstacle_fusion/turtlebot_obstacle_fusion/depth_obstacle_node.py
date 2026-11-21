@@ -267,7 +267,7 @@ class DepthObstacle(Node):
         scan = LaserScan()
         scan.header.stamp = now.to_msg()
         scan.header.frame_id = self.p["base_frame"]
-        scan.angle_min, scan.angle_max, scan.angle_increment = -pi, pi - self.bin_width, self.bin_width
+        scan.angle_min, scan.angle_max, scan.angle_increment = -pi + self.bin_width / 2.0, pi - self.bin_width / 2.0, self.bin_width
         scan.range_min, scan.range_max = 0.0, float(self.p["depth_max_m"])
         scan.ranges = [float(value) for value in ranges]
         self.publisher.publish(scan)

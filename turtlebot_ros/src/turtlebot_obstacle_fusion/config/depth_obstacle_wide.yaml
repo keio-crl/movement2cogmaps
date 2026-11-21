@@ -37,4 +37,4 @@ depth_obstacle:
     robot_radius_m: 0.1705
     collision_margin_m: 0.05
     save_period_s: 1.0
-    log_dir: ~/depth_obstacle_logs
+    log_dir: /home/murata-lab/tomita-turtlebot/movement2cogmaps/depth_obstacle_logs
